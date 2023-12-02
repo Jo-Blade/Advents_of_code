@@ -1,0 +1,17 @@
+f = open("input", "r")
+L = f.readlines()
+list = []
+
+for i in range(2, len(L), 3):
+    l1 = L[i - 2]
+    l2 = L[i - 1]
+    l3 = L[i]
+    for c in l1:
+        if l2.__contains__(c):
+            if l3.__contains__(c):
+                if 'a' <= c <= 'z':
+                    list.append(ord(c) - ord('a') + 1)
+                else:
+                    list.append(ord(c) - ord('A') + 27)
+                break
+print(sum(list))
