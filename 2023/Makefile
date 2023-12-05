@@ -1,7 +1,7 @@
 .PHONY: all dir clean latest
 
 CC = gcc
-FLAGS =
+FLAGS = -g
 
 BUILDDIR = bin
 
