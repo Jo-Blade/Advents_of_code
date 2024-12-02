@@ -1,0 +1,24 @@
+(executable
+ (public_name aoc)
+ (name main)
+ (libraries aoc angstrom))
+
+(executable
+ (public_name aoc_day1)
+ (name day1)
+ (libraries aoc angstrom))
+
+(executable
+ (public_name aoc_day2)
+ (name day2)
+ (libraries aoc angstrom))
+
+(executable
+ (public_name aoc_day3)
+ (name day3)
+ (libraries aoc angstrom))
+
+(executable
+ (public_name aoc_day4)
+ (name day4)
+ (libraries aoc))
