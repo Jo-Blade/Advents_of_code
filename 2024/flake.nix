@@ -29,7 +29,7 @@
         let
           advent-of-code = pkgs: pkgs.ocamlPackages.buildDunePackage {
             inherit version;
-            pname = "churros_online_calendar";
+            pname = "aoc";
             # Tell nix that the source of the content is in the root
             src = ./.;
 
@@ -47,7 +47,7 @@
               name = "advent-of-code";
               tag = "latest";
               contents = [ pkgs.cacert advent-of-code-package ];
-              config.Cmd = [ "${advent-of-code-package}/bin/churros_online_calendar" ];
+              config.Cmd = [ "${advent-of-code-package}/bin/aoc" ];
               # IMPORTANT: MAKE HTTPS WORK
               config.Env =
                 [
