@@ -22,3 +22,8 @@
  (public_name aoc_day4)
  (name day4)
  (libraries aoc))
+
+(executable
+ (public_name aoc_day5)
+ (name day5)
+ (libraries aoc angstrom))
