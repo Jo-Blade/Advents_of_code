@@ -120,16 +120,40 @@ let rec est_boucle reader (pos : position_joueur)
 
 let add_wall reader i j x y = if x = i && y = j then '#' else reader x y
 
-let day6_part2 str =
-  let nb = ref 0 in
+(* split la liste en n listes de tailles similaires et ajoute l'index dans la liste initiale à chaque élément *)
+let split_list_i n l =
+  let rec split_list_i_aux aux i l =
+    match l with
+    | [] -> aux
+    | h :: t ->
+        let new_aux =
+          List.mapi (fun k x -> if k = i mod n then (i, h) :: x else x) aux
+        in
+        split_list_i_aux new_aux (i + 1) t
+  in
+  split_list_i_aux (List.init n (fun _ -> [])) 0 l
+
+(* meme algo que dans le commit précédent, sauf qu'on profite du multithreading apporté par ocaml5
+   -> met environ 1min30 à tourner sur ma machine *)
+let day6_part2 nbthreads str =
   let reader, n, m = get_reader str in
   let first_pos = get_pos_joueur reader n m |> Option.get in
-  let old_chemin = trouver_chemin reader first_pos [ first_pos ] |> pos_uniques in
-  List.map (fun (_, (i,j)) -> Printf.printf "debug:%d\n" (!nb); incr nb; flush stdout; est_boucle (add_wall reader i j) first_pos [ first_pos ]) old_chemin |> List.filter (fun x -> x) |> List.length
+  let old_chemin = trouver_chemin reader first_pos [ first_pos ] |> pos_uniques
+  and partial_count l =
+    List.map
+      (fun (index, (_, (i, j))) ->
+        if index mod 200 = 0 then (
+          Printf.printf "debug:%d\n" index;
+          flush stdout);
+        est_boucle (add_wall reader i j) first_pos [ first_pos ])
+      l
+    |> List.filter (fun x -> x)
+    |> List.length
+  in
+  List.map
+    (fun l -> Domain.spawn (fun () -> partial_count l))
+    (split_list_i nbthreads old_chemin)
+  |> List.fold_left (fun count task -> count + Domain.join task) 0
 
-  (*
-  List.init (n * m) (fun k -> est_boucle (add_wall reader (k / m) (k mod m)) first_pos [ first_pos ]) |> List.filter (fun x -> x) |> List.length
-  *)
-
-let () = Printf.printf "res=%d\n" (day6_part2 test_input)
-let () = Printf.printf "res=%d\n" (day6_part2 (readfile "input6.txt"))
+let () = Printf.printf "res=%d\n" (day6_part2 10 test_input)
+let () = Printf.printf "res=%d\n" (day6_part2 10 (readfile "input6.txt"))
