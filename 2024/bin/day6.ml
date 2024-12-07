@@ -140,3 +140,48 @@ let day6_part2 str =
 
 let () = Printf.printf "res=%d\n" (day6_part2 test_input)
 let () = Printf.printf "res=%d\n" (day6_part2 (readfile "input6.txt"))
+
+(* ============================================================================================================= *)
+(* DEUXIEME VERSION DE LA PARTIE 2 EN DÉFINISSANT UN ORDEREDTYPE ET UTILISANT UN SET DANS LA FONCTION EST_BOUCLE *)
+(* ============================================================================================================= *)
+
+module Position_joueur = struct
+  type t = position_joueur
+
+  let compare ((dir1, (i1, j1)) : position_joueur)
+      ((dir2, (i2, j2)) : position_joueur) =
+    let dir_to_int = function NORD -> 0 | EST -> 1 | SUD -> 2 | OUEST -> 3 in
+    if i1 - i2 = 0 then
+      if j1 - j2 = 0 then dir_to_int dir1 - dir_to_int dir2 else j1 - j2
+    else i1 - i2
+end
+
+module Position_joueur_Set = Set.Make (Position_joueur)
+
+(** teste si on a une boucle, check_freq permet de décider la fréquence à laquelle
+    on teste la condition de validation de boucle (améliore les performances) *)
+let est_boucle reader (pos : position_joueur) =
+  let rec est_boucle_aux it (pos : position_joueur)
+      (chemin : Position_joueur_Set.t) : bool =
+    let new_pos = next_pos_joueur reader pos in
+    if est_dehors reader new_pos then false
+    else if Position_joueur_Set.find_opt new_pos chemin != None then true
+    else
+      est_boucle_aux (it + 1) new_pos (Position_joueur_Set.add new_pos chemin)
+  in
+  est_boucle_aux 0 pos Position_joueur_Set.empty
+
+let day6_part2 str =
+  let reader, n, m = get_reader str in
+  let first_pos = get_pos_joueur reader n m |> Option.get in
+  let old_chemin =
+    trouver_chemin reader first_pos [ first_pos ] |> pos_uniques
+  in
+  List.map
+    (fun (_, (i, j)) -> est_boucle (add_wall reader i j) first_pos)
+    old_chemin
+  |> List.filter (fun x -> x)
+  |> List.length
+
+let () = Printf.printf "res=%d\n" (day6_part2 test_input)
+let () = Printf.printf "res=%d\n" (day6_part2 (readfile "input6.txt"))
