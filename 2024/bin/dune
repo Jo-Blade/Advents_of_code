@@ -37,3 +37,8 @@
  (public_name aoc_day7)
  (name day7)
  (libraries aoc angstrom))
+
+(executable
+ (public_name aoc_day8)
+ (name day8)
+ (libraries aoc))
