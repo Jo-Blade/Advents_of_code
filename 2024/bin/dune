@@ -67,3 +67,8 @@
  (public_name aoc_day13)
  (name day13)
  (libraries aoc angstrom))
+
+(executable
+ (public_name aoc_day14)
+ (name day14)
+ (libraries aoc angstrom unix))
