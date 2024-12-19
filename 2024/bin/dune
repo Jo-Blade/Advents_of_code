@@ -82,3 +82,13 @@
  (public_name aoc_day16)
  (name day16)
  (libraries aoc))
+
+(executable
+ (public_name aoc_day17)
+ (name day17)
+ (libraries aoc angstrom))
+
+(executable
+ (public_name aoc_day18)
+ (name day18)
+ (libraries aoc angstrom))
