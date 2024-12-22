@@ -14,76 +14,54 @@ Register C: 0
 
 Program: 0,3,5,4,3,0|}
 
-type registers = { a : int; b : int; c : int; spy_reg : int * int * int }
+type registers = { a : int; b : int; c : int }
+type computer_channel = int list
 
-module type ComputerChannel = sig
-  type t
-end
+type computer_state = registers * int * computer_channel
+(** registre * instruction_pointer * stdout (list of outputs) *)
 
-module Computer =
-functor
-  (CC : ComputerChannel)
-  ->
-  struct
-    type computer_channel = CC.t
+type full_instr = computer_state -> computer_state
+type programme = int -> full_instr option
 
-    type computer_state = registers * int * computer_channel
-    (** registre * instruction_pointer * stdout (list of outputs) *)
+let prog_of_list l : programme =
+  let tab = Array.of_list l in
+  fun n -> if n < Array.length tab then Some tab.(n) else None
 
-    type 'err full_instr = computer_state -> (computer_state, 'err) result
-    type 'err programme = int -> 'err full_instr option
-
-    let prog_of_list l : 'a programme =
-      let tab = Array.of_list l in
-      fun n -> if n < Array.length tab then Some tab.(n) else None
-
-    let rec execution (prog : 'a programme)
-        ((_, ip, _) as curr_state : computer_state) :
-        (computer_state, 'a) result =
-      match prog ip with
-      | None -> Ok curr_state
-      | Some inst -> (
-          match inst curr_state with
-          | Ok new_state -> execution prog new_state
-          | x -> x)
-  end
+let rec execution (prog : programme) ((_, ip, _) as curr_state : computer_state)
+    : computer_state =
+  match prog ip with
+  | None -> curr_state
+  | Some inst -> execution prog (inst curr_state)
 
 let ip_inc (regs, ip, stdout) = (regs, ip + 1, stdout)
 
 let adv op (({ a = n; _ } as regs), ip, stdout) =
-  Ok (({ regs with a = n / (1 lsl op regs) }, ip, stdout) |> ip_inc)
+  ({ regs with a = n / (1 lsl op regs) }, ip, stdout) |> ip_inc
 
 let bxl op (({ b = n; _ } as regs), ip, stdout) =
-  Ok (({ regs with b = n lxor op regs }, ip, stdout) |> ip_inc)
+  ({ regs with b = n lxor op regs }, ip, stdout) |> ip_inc
 
 let bst op (regs, ip, stdout) =
-  Ok (({ regs with b = op regs mod 8 }, ip, stdout) |> ip_inc)
+  ({ regs with b = op regs mod 8 }, ip, stdout) |> ip_inc
 
 let jnz op (({ a = n; _ } as regs), ip, stdout) =
-  Ok (regs, (if n = 0 then ip + 1 else op regs), stdout)
+  (regs, (if n = 0 then ip + 1 else op regs), stdout)
 
 let bxc _ (({ b = nb; c = nc; _ } as regs), ip, stdout) =
-  Ok (({ regs with b = nb lxor nc }, ip, stdout) |> ip_inc)
+  ({ regs with b = nb lxor nc }, ip, stdout) |> ip_inc
 
-module ComputerChannel1 = struct
-  type t = string list
-
-  let empty = []
-  let append chan n = Ok (string_of_int n :: chan)
-  let to_string chan = String.concat "," (List.rev chan)
-end
+let append chan n = n :: chan
+let to_string chan = String.concat "," (List.rev (List.map string_of_int chan))
 
 let out op (regs, ip, stdout) =
-  let ( >> ) = ComputerChannel1.append in
-  stdout >> op regs mod 8 |> function
-  | Ok stdout -> Ok ((regs, ip, stdout) |> ip_inc)
-  | Error x -> Error x
+  let ( >> ) = append in
+  stdout >> op regs mod 8 |> fun stdout -> (regs, ip, stdout) |> ip_inc
 
 let bdv op (({ a = n; _ } as regs), ip, stdout) =
-  Ok (({ regs with b = n / (1 lsl op regs) }, ip, stdout) |> ip_inc)
+  ({ regs with b = n / (1 lsl op regs) }, ip, stdout) |> ip_inc
 
 let cdv op (({ a = n; _ } as regs), ip, stdout) =
-  Ok (({ regs with c = n / (1 lsl op regs) }, ip, stdout) |> ip_inc)
+  ({ regs with c = n / (1 lsl op regs) }, ip, stdout) |> ip_inc
 
 let readfile file =
   (* Read file and display the first line *)
@@ -110,11 +88,7 @@ let integer = take_while1 is_digit >>| int_of_string
 let reg_parse =
   string "Register " *> any_char *> string ": " *> integer <* whitespace
 
-let regs_parse =
-  lift3
-    (fun a b c -> { a; b; c; spy_reg = (0, 0, 0) })
-    reg_parse reg_parse reg_parse
-
+let regs_parse = lift3 (fun a b c -> { a; b; c }) reg_parse reg_parse reg_parse
 let literal_operand_of_int n _ = n
 
 let combo_operand_of_int (x : int) =
@@ -144,101 +118,59 @@ let parse_instr = both (integer <* char ',') integer
 let parse_prog = string "Program: " *> sep_by (char ',') parse_instr
 let parse_full = both regs_parse parse_prog
 
-module Computer1 = struct
-  open Computer (ComputerChannel1)
+let day17_part1 input =
+  parse_string ~consume:Prefix parse_full input |> function
+  | Ok (regs, prog) ->
+      execution
+        (prog_of_list (List.map (fun (a, b) -> instruction_of_ints a b) prog))
+        (regs, 0, [])
+      |> fun (_, _, stdout) -> Printf.printf "result=%s\n" (to_string stdout)
+  | Error x -> failwith ("parse_error=" ^ x)
 
-  let day17_part1 input =
-    parse_string ~consume:Prefix parse_full input |> function
-    | Ok (regs, prog) -> (
-        execution
-          (prog_of_list (List.map (fun (a, b) -> instruction_of_ints a b) prog))
-          (regs, 0, ComputerChannel1.empty)
-        |> function
-        | Ok (_, _, stdout) ->
-            Printf.printf "result=%s\n" (ComputerChannel1.to_string stdout)
-        | _ -> failwith "program exception")
-    | Error x -> failwith ("parse_error=" ^ x)
-end
+let rec test n = function [] -> n | h :: t -> test ((n lsl 3) lor h) t
 
-let () = Computer1.day17_part1 test_input
+let rec same_prefixe l1 l2 n =
+  if n = 0 then true
+  else
+    match (l1, l2) with
+    | h1 :: t1, h2 :: t2 ->
+        if h1 = h2 then same_prefixe t1 t2 (n - 1) else false
+    | _ -> false
 
-let () =
-  Computer1.day17_part1 (readfile "input17.txt");
-  flush stdout
+let rec bruteforce prog init_regs rev_expected_list prefixe =
+  let n = List.length rev_expected_list in
+  let curr_n = List.length prefixe in
+  if n = curr_n then test 0 prefixe
+  else
+    List.filter_map
+      (fun x ->
+        let full_rega_list =
+          prefixe @ [ x ] @ List.init (n - curr_n - 1) (fun _ -> 0)
+        in
+        execution prog ({ init_regs with a = test 0 full_rega_list }, 0, [])
+        |> fun (_, _, stdout) ->
+        if same_prefixe stdout rev_expected_list (curr_n + 1) then
+          Some (prefixe @ [ x ])
+        else None)
+      (List.init 8 (fun x -> x))
+    |> List.fold_left
+         (fun acc pref ->
+           min (bruteforce prog init_regs rev_expected_list pref) acc)
+         max_int
 
-(** the spy_reg should contain the sum of all combo operands used
-    when doing an (a|b|c)dv instruction.
-    current function is a wrapper to help this purpose *)
-let incr_spy_rega op (({ spy_reg = a, b, c; _ } as regs), ip, stdout) =
-  ({ regs with spy_reg = (a + op regs, b, c) }, ip, stdout)
+let day17_part2 input =
+  parse_string ~consume:Prefix parse_full input |> function
+  | Ok (regs, prog) ->
+      let programme =
+        prog_of_list (List.map (fun (a, b) -> instruction_of_ints a b) prog)
+      in
+      let rev_exp_l =
+        List.fold_left (fun acc (i, j) -> [ j; i ] @ acc) [] prog
+      in
+      bruteforce programme regs rev_exp_l [] |> Printf.printf "result=%d\n"
+  | Error x -> failwith ("parse_error=" ^ x)
 
-let incr_spy_regb op (({ spy_reg = a, b, c; _ } as regs), ip, stdout) =
-  ({ regs with spy_reg = (a, b + op regs, c) }, ip, stdout)
-
-let incr_spy_regc op (({ spy_reg = a, b, c; _ } as regs), ip, stdout) =
-  ({ regs with spy_reg = (a, b, c + op regs) }, ip, stdout)
-
-module ComputerChannel2 = struct
-  type t = int list
-
-  let append (chan : t) (n : int) =
-    match chan with [] -> Error 1 | h :: t -> if h = n then Ok t else Error 1
-end
-
-let out op (regs, ip, stdout) =
-  let ( >> ) = ComputerChannel2.append in
-  stdout >> op regs mod 8 |> function
-  | Ok stdout -> Ok ((regs, ip, stdout) |> ip_inc)
-  | Error _ -> Error (regs, ip, stdout)
-
-let instruction_of_ints_part2 opcode operand =
-  match opcode with
-  | 0 ->
-      fun a ->
-        incr_spy_rega (combo_operand_of_int operand) a
-        |> adv (combo_operand_of_int operand)
-  | 1 -> bxl (literal_operand_of_int operand)
-  | 2 -> bst (combo_operand_of_int operand)
-  | 3 -> jnz (literal_operand_of_int operand)
-  | 4 -> bxc (literal_operand_of_int operand)
-  | 5 -> out (combo_operand_of_int operand)
-  | 6 ->
-      fun a ->
-        incr_spy_regb (combo_operand_of_int operand) a
-        |> bdv (combo_operand_of_int operand)
-  | 7 ->
-      fun a ->
-        incr_spy_regc (combo_operand_of_int operand) a
-        |> cdv (combo_operand_of_int operand)
-  | _ -> failwith "invalid opcode"
-
-module Computer2 = struct
-  open Computer (ComputerChannel2)
-
-  let rec find_reg_a prog ((({ a = n; _ } as regs), ip, stdout) as state) =
-    match execution prog state with
-    | Ok (_, _, []) -> n
-    | Ok ({ spy_reg = a, b, c; _ }, _, _)
-    | Error ({ spy_reg = a, b, c; _ }, _, _) ->
-        let x = max a (max b c) in
-        if n < 119000 then Printf.printf "debug:%d + %d\n" n x;
-        find_reg_a prog ({ regs with a = n + (1 lsl max 0 (x - 3)) }, ip, stdout)
-
-  let day17_part2 input =
-    parse_string ~consume:Prefix parse_full input |> function
-    | Ok (regs, prog) ->
-        find_reg_a
-          (prog_of_list
-             (List.map (fun (a, b) -> instruction_of_ints_part2 a b) prog))
-          ( { regs with a = 0 },
-            0,
-            List.map (fun (a, b) -> [ a; b ]) prog |> List.flatten )
-        |> Printf.printf "result=%d\n"
-    | Error x -> failwith ("parse_error=" ^ x)
-end
-
-let () =
-  Computer2.day17_part2 test_input2;
-  flush stdout
-
-let () = Computer2.day17_part2 (readfile "input17.txt")
+let () = day17_part1 test_input
+let () = day17_part1 (readfile "input17.txt")
+let () = day17_part2 test_input2
+let () = day17_part2 (readfile "input17.txt")
