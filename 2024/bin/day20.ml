@@ -131,15 +131,19 @@ let all_dijkstra_distances (graph : (Vec2.t, int) graph) (start : Vec2.t) =
         all_dijkstra_distance_aux new_todo new_scores
     | None -> current_scores
   in
-  all_dijkstra_distance_aux (NodeScoreSet.singleton (0, start)) (Vec2Map.singleton start 0)
+  all_dijkstra_distance_aux
+    (NodeScoreSet.singleton (0, start))
+    (Vec2Map.singleton start 0)
 
-
-let all_dijkstra_distances2 max_allowed_score (graph : (Vec2.t, int) graph) (start : Vec2.t) =
+let all_dijkstra_distances2 max_allowed_score (graph : (Vec2.t, int) graph)
+    (start : Vec2.t) =
   let rec all_dijkstra_distance_aux (todo : NodeScoreSet.t)
       (current_scores : int Vec2Map.t) : int Vec2Map.t =
     let maybe_update_todo_and_scores (todo : NodeScoreSet.t) scores node
         new_score =
-      if new_score <= max_allowed_score &&
+      if
+        new_score <= max_allowed_score
+        &&
         match Vec2Map.find_opt node scores with
         | None -> true
         | Some x -> x > new_score
@@ -159,7 +163,9 @@ let all_dijkstra_distances2 max_allowed_score (graph : (Vec2.t, int) graph) (sta
         all_dijkstra_distance_aux new_todo new_scores
     | None -> current_scores
   in
-  all_dijkstra_distance_aux (NodeScoreSet.singleton (0, start)) (Vec2Map.singleton start 0)
+  all_dijkstra_distance_aux
+    (NodeScoreSet.singleton (0, start))
+    (Vec2Map.singleton start 0)
 
 let test_shortcut expected_save_time dist_dest
     (scores_from_start : int Vec2Map.t) (scores_from_dest : int Vec2Map.t)
@@ -179,15 +185,17 @@ let test_shortcut expected_save_time dist_dest
 let list_sum = List.fold_left ( + ) 0
 
 let get_inv_graph n m pos =
-    List.filter (fun x -> in_matrix n m x) (voisins pos)
-    |> List.map (fun x -> (x, 1))
+  List.filter (fun x -> in_matrix n m x) (voisins pos)
+  |> List.map (fun x -> (x, 1))
 
-let shortcut is_wall inv_graph start_pos max_shortcut_duration : (shortcut * int) list =
-  let dists_to_start = all_dijkstra_distances2 (max_shortcut_duration - 1) inv_graph start_pos in
+let shortcut is_wall inv_graph start_pos max_shortcut_duration :
+    (shortcut * int) list =
+  let dists_to_start =
+    all_dijkstra_distances2 (max_shortcut_duration - 1) inv_graph start_pos
+  in
   Vec2Map.to_list dists_to_start
   |> List.filter_map (fun (end_pos, d) ->
-      if (is_wall end_pos) then None else (
-         Some ((start_pos, end_pos), d)))
+         if is_wall end_pos then None else Some ((start_pos, end_pos), d))
 
 let shortcut_list_part2 n m reader shortcut_duration =
   let is_wall = is_wall reader in
@@ -195,7 +203,9 @@ let shortcut_list_part2 n m reader shortcut_duration =
   List.fold_left
     (fun acc p -> shortcut is_wall inv_graph p shortcut_duration @ acc)
     []
-    ((find_all_pos_letter reader 'S' (0, 0) (n, m)) @ (find_all_pos_letter reader 'E' (0, 0) (n, m)) @ (find_all_pos_letter reader '.' (0, 0) (n, m)))
+    (find_all_pos_letter reader 'S' (0, 0) (n, m)
+    @ find_all_pos_letter reader 'E' (0, 0) (n, m)
+    @ find_all_pos_letter reader '.' (0, 0) (n, m))
 
 let day20_part1 str expected_save_time =
   let reader, n, m = get_reader str '#' in
@@ -267,12 +277,12 @@ let readfile file =
   String.concat "\n" (aux ())
 
 let () = day20_part1 test_input 1 |> Printf.printf "result:%d\n"
+
 (*
 let () = day20_part1 (readfile "input20.txt") 100 |> Printf.printf "result:%d\n"
 let () = flush stdout
 *)
 let () = day20_part2 2 test_input 1 |> Printf.printf "result:%d\n"
-
 let () = day20_part2 18 test_input 50 |> Printf.printf "result:%d\n"
 let () = flush stdout
 
