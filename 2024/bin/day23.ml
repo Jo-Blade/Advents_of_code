@@ -51,85 +51,6 @@ functor
   ->
   struct
     type graph = Node.t -> Node.t list
-    type graph_cout = Node.t -> (Node.t * int) list
-
-    module NodeMap = Map.Make (Node)
-
-    let sign (a, b) = if a = 0 then b else a
-
-    module NodeScore = struct
-      type t = int * Node.t
-
-      let compare ((x, nd1) : t) ((y, nd2) : t) =
-        (x - y, compare nd1 nd2) |> sign
-    end
-
-    module NodeScoreSet = Set.Make (NodeScore)
-
-    let all_dijkstra_paths_from (graph : graph_cout) (max_allowed_score : int)
-        (start : Node.t) =
-      let rec dijkstra_aux (todo : NodeScoreSet.t)
-          (current_scores : (int * Node.t list) NodeMap.t) :
-          (int * Node.t list) NodeMap.t =
-        let maybe_update_todo_and_scores (todo : NodeScoreSet.t)
-            (scores : (int * Node.t list) NodeMap.t) node (new_score : int)
-            prev_node =
-          let old_score, old_prevs_node =
-            match NodeMap.find_opt node scores with
-            | None -> (Int.max_int, [])
-            | Some (x, prevs) -> (x, prevs)
-          in
-          if new_score <= max_allowed_score && old_score = new_score then
-            ( NodeScoreSet.add (new_score, node) todo,
-              NodeMap.add node (new_score, prev_node :: old_prevs_node) scores
-            )
-          else if old_score > new_score then
-            ( NodeScoreSet.add (new_score, node) todo,
-              NodeMap.add node (new_score, [ prev_node ]) scores )
-          else (todo, scores)
-        in
-        match NodeScoreSet.min_elt_opt todo with
-        | Some ((score, node) as x) ->
-            List.fold_left
-              (fun (t, s) (nd, di) ->
-                maybe_update_todo_and_scores t s nd (score + di) node)
-              (NodeScoreSet.remove x todo, current_scores)
-              (graph node)
-            |> fun (new_todo, new_scores) -> dijkstra_aux new_todo new_scores
-        | None -> current_scores
-      in
-      dijkstra_aux
-        (NodeScoreSet.singleton (0, start))
-        (NodeMap.singleton start (0, []))
-
-    let extract_shortest_paths
-        (dijkstra_vec2map : (int * Node.t list) NodeMap.t) (start : Node.t)
-        (dest : Node.t) =
-      let rec extract_shortest_paths_aux (dest : Node.t) =
-        if dest = start then [ [ start ] ]
-        else
-          match NodeMap.find_opt dest dijkstra_vec2map with
-          | None -> []
-          | Some (_, prev_nodes) ->
-              List.map
-                (fun prev_node : Node.t list list ->
-                  extract_shortest_paths_aux prev_node |> fun l ->
-                  List.map (fun x -> dest :: x) l)
-                prev_nodes
-              |> List.flatten
-      in
-      extract_shortest_paths_aux dest |> fun l -> List.map List.rev l
-
-    type 'b graph_transition = Node.t -> Node.t -> 'b
-    (** une fonction qui donne les transition d'un graphe prend en parametre
-    le noeud précédent et le noeud suivant et renvoie la transition *)
-
-    let rec transitions_chemin (f_transitions : 'b graph_transition)
-        (chemin : Node.t list) =
-      match chemin with
-      | [ _ ] | [] -> []
-      | prev :: next :: t ->
-          f_transitions prev next :: transitions_chemin f_transitions (next :: t)
 
     module NodeSet = Set.Make (Node)
 
@@ -150,6 +71,31 @@ functor
                (NodeSet.to_list l))
       |> List.flatten
       |> List.sort_uniq NodeSet.compare
+
+    module NodeSetSet = Set.Make (NodeSet)
+
+    (** Implementation de l'algo de bronKerbosch avec pivot,
+        voir https://fr.wikipedia.org/wiki/Algorithme_de_Bron-Kerbosch *)
+    let bronKerbosch (graph : graph) (nodes : Node.t list) : NodeSetSet.t =
+      let memo = Hashtbl.create (List.length nodes) in
+      List.iter (fun s -> Hashtbl.add memo s (NodeSet.of_list (graph s))) nodes;
+      let rec bronKerbosch_aux (r : NodeSet.t) (p : NodeSet.t) (x : NodeSet.t) :
+          NodeSetSet.t =
+        if NodeSet.is_empty p && NodeSet.is_empty x then NodeSetSet.singleton r
+        else
+          let u = NodeSet.choose (NodeSet.union p x) in
+          let voisins_u = Hashtbl.find memo u in
+          List.fold_left
+            (fun acc v ->
+              NodeSetSet.union acc
+                (let voisins_v = Hashtbl.find memo v in
+                 bronKerbosch_aux (NodeSet.add v r)
+                   (NodeSet.inter p voisins_v)
+                   (NodeSet.inter x voisins_v)))
+            NodeSetSet.empty
+            (NodeSet.to_list (NodeSet.diff p voisins_u))
+      in
+      bronKerbosch_aux NodeSet.empty (NodeSet.of_list nodes) NodeSet.empty
   end
 
 let list_tokens (l : (string * string) list) =
@@ -201,3 +147,23 @@ let () = Parser.apply day23_part1 test_input (Printf.printf "result:%d\n")
 let () =
   Parser.apply day23_part1 (readfile "input23.txt")
     (Printf.printf "result:%d\n")
+
+let day23_part2 (l : (string * string) list) =
+  let graph = get_graph l and l_toks = list_tokens l in
+  Network.bronKerbosch graph l_toks
+  |> Network.NodeSetSet.to_list
+  |> List.sort (fun a b ->
+         -Int.compare (Network.NodeSet.cardinal a) (Network.NodeSet.cardinal b))
+  |> List.hd |> Network.NodeSet.to_list
+
+let print_list l = String.concat "," l
+
+let () =
+  Parser.apply day23_part2 test_input (fun l ->
+      Printf.printf "result:%s\n" (print_list l))
+
+let () = flush stdout
+
+let () =
+  Parser.apply day23_part2 (readfile "input23.txt") (fun l ->
+      Printf.printf "result:%s\n" (print_list l))
