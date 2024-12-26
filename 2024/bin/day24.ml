@@ -49,22 +49,35 @@ tnw OR pbm -> gnj|}
 
 module StrMap = Map.Make (String)
 
+type op_symbol = OR | XOR | AND
 type operator = bool -> bool -> bool
-type wire_tree = In of bool | Gate of wire_tree * wire_tree * operator
-type wire_tree_builder = In_b of bool | Gate_b of string * string * operator
+
+type wire_tree =
+  | In of string * bool
+  | Gate of wire_tree * wire_tree * op_symbol
+
+type wire_tree_builder =
+  | In_b of string * bool
+  | Gate_b of string * string * op_symbol
+
 type parse_wires = wire_tree_builder StrMap.t
+
+let xor = (( <> ) : bool -> bool -> bool)
+
+let op_of_symbol (op : op_symbol) : operator =
+  match op with OR -> ( || ) | XOR -> xor | AND -> ( && )
 
 let rec calc_tree (wire_tree : wire_tree) =
   match wire_tree with
-  | In b -> b
-  | Gate (w1, w2, op) -> op (calc_tree w1) (calc_tree w2)
+  | In (_, b) -> b
+  | Gate (w1, w2, op) -> (op_of_symbol op) (calc_tree w1) (calc_tree w2)
 
 let rec build_tree (wire_tree_builder : parse_wires) (node : string) =
   match StrMap.find_opt node wire_tree_builder with
   | None -> Error node
   | Some x -> (
       match x with
-      | In_b b -> Ok (In b)
+      | In_b (s, b) -> Ok (In (s, b))
       | Gate_b (s1, s2, op) -> (
           match
             (build_tree wire_tree_builder s1, build_tree wire_tree_builder s2)
@@ -72,8 +85,6 @@ let rec build_tree (wire_tree_builder : parse_wires) (node : string) =
           | Ok g1, Ok g2 -> Ok (Gate (g1, g2, op))
           | Error err, _ -> Error err
           | _, Error err -> Error err))
-
-let xor = (( <> ) : bool -> bool -> bool)
 
 module Parser = struct
   open Angstrom
@@ -84,13 +95,24 @@ module Parser = struct
     char '1' >>| (fun _ -> true) <|> (char '0' >>| fun _ -> false)
 
   let parse_in =
-    both (token <* string ": ") (parse_bool_of_int >>| fun b -> In_b b)
+    lift2
+      (fun tok b -> (tok, In_b (tok, b)))
+      (token <* string ": ")
+      parse_bool_of_int
 
+  (*
   let parse_op =
     string "OR"
     >>| (fun _ -> ( || ))
     <|> (string "AND" >>| fun _ -> ( && ))
     <|> (string "XOR" >>| fun _ -> xor)
+*)
+
+  let parse_op =
+    string "OR"
+    >>| (fun _ -> OR)
+    <|> (string "AND" >>| fun _ -> AND)
+    <|> (string "XOR" >>| fun _ -> XOR)
 
   let parse_op_line =
     lift4
@@ -145,3 +167,78 @@ let () = Parser.apply day24_part1 test_input (Printf.printf "result:%d\n")
 let () =
   Parser.apply day24_part1 (readfile "input24.txt")
     (Printf.printf "result:%d\n")
+
+type semantic_wires =
+  | X of int
+  | Y of int
+  | XxY of int
+  | XeY of int
+  | XxYeCin of int
+  | C of int
+  | Z of int
+
+let string_of_sem = function
+  | X i -> Printf.sprintf "X(%d)" i
+  | Y i -> Printf.sprintf "Y(%d)" i
+  | Z i -> Printf.sprintf "Z(%d)" i
+  | C i -> Printf.sprintf "C(%d)" i
+  | XxY i -> Printf.sprintf "XxY(%d)" i
+  | XeY i -> Printf.sprintf "XeY(%d)" i
+  | XxYeCin i -> Printf.sprintf "XxYeCin(%d)" i
+
+let memo = Hashtbl.create 0
+
+let test_fils s (sem : semantic_wires) fun1 fun2 (fils1 : string) (fils2 : string) =
+      (fun1 fils1 && fun2 fils2) || (fun2 fils1 && fun1 fils2)
+  |> fun b -> if b = false then Printf.printf "debug_fail:%s->%s\n" (string_of_sem sem) s
+  else Hashtbl.replace memo sem s;
+  b
+
+let rec test_X i (node : string) =
+  node = Printf.sprintf("x%.2d") i
+
+and test_Y i (node : string) =
+  node = Printf.sprintf("y%.2d") i
+
+and test_Z (wires : parse_wires) (i : int) (node : string) : bool =
+  if i = 0 then
+    match StrMap.find node wires with
+    | Gate_b (a_tree, b_tree, XOR) ->
+        test_fils node (Z(i)) (test_X 0) (test_Y 0) a_tree b_tree
+    | _ -> false
+  else
+    match StrMap.find node wires with
+    | Gate_b (a_tree, b_tree, XOR) ->
+        test_fils node (Z i) (test_XxY wires i) (test_C wires (i - 1)) a_tree b_tree
+    | _ -> false
+
+and test_XxY (wires : parse_wires) (i : int) (node : string) : bool =
+  match StrMap.find node wires with
+  | Gate_b (a_tree, b_tree, XOR) ->
+      test_fils node (XxY i) (test_X i) (test_Y i) a_tree b_tree
+  | _ -> false
+
+and test_XeY (wires : parse_wires) (i : int) (node : string) : bool =
+  match StrMap.find node wires with
+  | Gate_b (a_tree, b_tree, AND) ->
+      test_fils node (XeY i) (test_X i) (test_Y i) a_tree b_tree
+  | _ -> false
+
+and test_XxYeCin (wires : parse_wires) (i : int) (node : string) :
+    bool =
+  match StrMap.find node wires with
+  | Gate_b (a_tree, b_tree, AND) ->
+      test_fils node (XxYeCin i) (test_XxY wires i) (test_C wires (i - 1)) a_tree b_tree
+  | _ -> false
+
+and test_C (wires : parse_wires) (i : int) (node : string) : bool =
+  if i = 0 then
+    match StrMap.find node wires with
+    | Gate_b (a_tree, b_tree, AND) ->
+        test_fils node (C i) (test_X 0) (test_Y 0) a_tree b_tree
+    | _ -> false
+  else
+    match StrMap.find node wires with
+    | Gate_b (a_tree, b_tree, OR) ->
+        test_fils node (C i) (test_XxYeCin wires i) (test_XeY wires i) a_tree b_tree
+    | _ -> false
