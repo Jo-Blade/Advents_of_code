@@ -1,0 +1,25 @@
+(lang dune 3.18)
+
+(name aoc25)
+
+(generate_opam_files true)
+
+(source
+ (github Jo-Blade/Advents_of_code))
+
+(authors "PISENTI Teo <teo.pisenti@etu.toulouse-inp.fr>")
+
+(maintainers  "PISENTI Teo <teo.pisenti@etu.toulouse-inp.fr>")
+
+(license LICENSE)
+
+(documentation https://adventofcode.com/2025)
+
+(package
+ (name aoc25)
+ (synopsis "My advent of code participation in december 2025")
+ (depends ocaml)
+ (tags
+  (adventofcode)))
+
+; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
