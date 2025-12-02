@@ -2,3 +2,8 @@
  (public_name aoc25_day1)
  (name day1)
  (libraries parsercombinators))
+
+(executable
+ (public_name aoc25_day2)
+ (name day2)
+ (libraries parsercombinators))

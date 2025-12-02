@@ -101,3 +101,13 @@ let ( +<- ) p1 p2 = combine2 (fun a _ -> a) p1 p2
 
 (** Skip result of previous parser *)
 let ( +-> ) p1 p2 = combine2 (fun _ a -> a) p1 p2
+
+(** A parser that match an unique char *)
+let char c = map_next (fun c' -> if c = c' then Some c else None)
+
+(** sep_by p_sep p repeats the parser p but interleave p_sep (whose output is
+    ignored) between each match
+    @param p_sep the parser of separator elements
+    @param p the parser for matched elements *)
+let sep_by (p_sep : _ parser) (p : 'a parser) : 'a Seq.t parser =
+  combine2 (fun x xs -> fun () -> Seq.Cons (x, xs)) p @@ repeat (p_sep +-> p)
