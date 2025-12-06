@@ -1,14 +1,14 @@
 (executable
  (public_name aoc25_day1)
  (name day1)
- (libraries parsercombinators))
+ (libraries aoc25))
 
 (executable
  (public_name aoc25_day2)
  (name day2)
- (libraries parsercombinators))
+ (libraries aoc25))
 
 (executable
  (public_name aoc25_day3)
  (name day3)
- (libraries parsercombinators))
+ (libraries aoc25))

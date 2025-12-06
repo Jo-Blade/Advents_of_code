@@ -1,4 +1,4 @@
-module P = Parsercombinators.Parsers
+module P = Aoc25.Parsers
 
 (** Remove the first reversal in a list - e.g the first number that is smaller
     than the next one *)

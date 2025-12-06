@@ -1,4 +1,4 @@
-module P = Parsercombinators.Parsers
+module P = Aoc25.Parsers
 
 type sized_int = int * int
 (** an int with the first power of 10 higher of itself *)

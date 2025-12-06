@@ -1,4 +1,4 @@
-module P = Parsercombinators.Parsers
+module P = Aoc25.Parsers
 
 (** Parser that returns the list of signed numbers (L = negative, R = positive)
 *)
