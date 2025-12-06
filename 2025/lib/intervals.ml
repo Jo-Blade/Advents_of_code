@@ -21,11 +21,28 @@ let rec mem x = function
         mem x a
       else if x <= ma then true
       else
-        (* as intervals can overlap, we must continue search in both directions *)
-        mem x b || mem x a
+        (* as intervals don't overlap, go right *)
+        mem x b
 
-(** Helper function to balance a red-black tree *)
-let balance = function
+(** union x inter_tree appends the contiguous_interval "x" in the "inter_tree"
+    red-black tree *)
+let rec union i = function
+  | Empty -> Black (i, Leaf, Leaf)
+  | Leaf -> Red (i, Leaf, Leaf)
+  | Red (i', a, b) ->
+      balance
+      @@
+      let a, b = update_children i i' a b in
+      Red (i', a, b)
+  | Black (i', a, b) ->
+      balance
+      @@
+      let a, b = update_children i i' a b in
+      Black (i', a, b)
+
+and balance =
+  (* Helper function to balance a red-black tree *)
+  function
   | Black (z, Red (y, Red (x, a, b), c), d)
   | Black (z, Red (x, a, Red (y, b, c)), d)
   | Black (x, a, Red (z, Red (y, b, c), d))
@@ -33,15 +50,28 @@ let balance = function
       Red (y, Black (x, a, b), Black (z, c, d))
   | x -> x
 
-(** union x inter_tree appends the contiguous_interval "x" in the "inter_tree"
-    red-black tree *)
-let rec union ((x, _) as inter) = function
-  | Empty -> Black (inter, Leaf, Leaf)
-  | Leaf -> Red (inter, Leaf, Leaf)
-  | Red (((mi, _) as i), a, b) ->
-      balance
-      @@ if x < mi then Red (i, union inter a, b) else Red (i, a, union inter b)
-  | Black (((mi, _) as i), a, b) ->
-      balance
-      @@
-      if x < mi then Black (i, union inter a, b) else Black (i, a, union inter b)
+and update_children (mi, ma) (mi', ma') a b =
+  (* Helper function to compute the update children of a node *)
+  ( (if mi < mi' then
+       (* cut upper part of the interval to remove overlap *)
+       let ma = min ma (mi' - 1) in
+       if mi <= ma then union (mi, ma) a else a
+     else a),
+    (* cut lower part of the interval to remove overlap *)
+    if ma' < ma then
+      let mi = max mi (ma' + 1) in
+      if mi <= ma then union (mi, ma) b else b
+    else b )
+
+(** Convert the interval_tree into a sorted seq of non overlapping intervals *)
+let rec seq_of_tree = function
+  | Leaf | Empty -> Seq.empty
+  | Red (i, a, b) | Black (i, a, b) ->
+      Seq.append (seq_of_tree a) @@ Seq.cons i (seq_of_tree b)
+
+(** Length of a contiguous_interval *)
+let length_contiguous (mi, ma) = ma - mi + 1
+
+(** Number of element inside an interval_tree *)
+let length inter_tree =
+  Seq.map length_contiguous @@ seq_of_tree inter_tree |> Seq.fold_left ( + ) 0
