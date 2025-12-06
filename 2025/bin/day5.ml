@@ -22,3 +22,7 @@ let count_memberships (inter_tree, xs) =
 let () =
   count_memberships @@ Parsers.run_on_argv1 p
   |> Printf.printf "solution part1 = %d\n"
+
+let () =
+  Intervals.length @@ fst @@ Parsers.run_on_argv1 p
+  |> Printf.printf "solution part2 = %d\n"
