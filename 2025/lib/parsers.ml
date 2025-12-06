@@ -45,17 +45,10 @@ let take_while (f : char -> bool) : string parser =
   ( Some (String.of_seq @@ Seq.take_while f !.xs),
     fun () -> Seq.drop_while f !.xs )
 
-(** `is_digit c` returns true if c is a digit char *)
-let is_digit = function '0' .. '9' -> true | _ -> false
-
 (** `map f p` apply function f to the output of p` *)
 let map (f : 'a -> 'b) (p : 'a parser) : 'b parser =
  fun xs ->
   match p xs with Some out, ys -> (Some (f out), ys) | None, ys -> (None, ys)
-
-(** uint is the parser that take the longest sequence of digits and read it as
-    an unsigned integer *)
-let uint = take_while is_digit |> map int_of_string
 
 (** Execute the parsers in order and combine their outputs using f
     @param f the function to combine outputs
@@ -70,6 +63,22 @@ let combine2 (f : 'a -> 'b -> 'c) (p1 : 'a parser) (p2 : 'b parser) : 'c parser
   | Some o1 -> (
       let o2, zs = p2 ys in
       match o2 with None -> (None, zs) | Some o2 -> (Some (f o1 o2), zs))
+
+(** `take_while1 f p` is the parser that takes the longest string of
+    consecutives chars where every char `x` satisfies `f x`. Contrary to
+    take_while, the resulting string must contains at least 1 element *)
+let take_while1 (f : char -> bool) : string parser =
+  combine2
+    (fun c s -> String.make 1 c ^ s)
+    (map_next (fun c -> if f c then Some c else None))
+    (take_while f)
+
+(** `is_digit c` returns true if c is a digit char *)
+let is_digit = function '0' .. '9' -> true | _ -> false
+
+(** uint is the parser that take the longest sequence of digits and read it as
+    an unsigned integer *)
+let uint = take_while1 is_digit |> map int_of_string
 
 (** Repeat a parser between, at least 0 time
     @param p the parser to repeat
@@ -97,6 +106,9 @@ let is_whitespace = function ' ' | '\n' | '\r' | '\t' -> true | _ -> false
 
 (** Match 0 to many whitespaces *)
 let ws = take_while is_whitespace
+
+(** Match 0 to many spaces *)
+let spaces = take_while (function ' ' -> true | _ -> false)
 
 (** Skip result of next parser *)
 let ( +<- ) p1 p2 = combine2 (fun a _ -> a) p1 p2
@@ -161,8 +173,7 @@ let ( >>= ) = chain_map
     @return
       a parser that output the double sequence to iterate through the full grid
 *)
-let grid (f : char -> 'a option) : 'a Seq.t Seq.t parser =
-  let p = map_next f in
+let grid p : 'a Seq.t Seq.t parser =
   (* compute first line to know grid width *)
   repeat p +<- char '\n'
   >>=
@@ -199,4 +210,4 @@ let grid_fun ~oob f =
         if (i >= 0 && i < lines) && j >= 0 && j < columns then buffer.(i).(j)
         else oob )
   in
-  map create_fun (grid f)
+  map create_fun (grid (map_next f))
