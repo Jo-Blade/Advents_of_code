@@ -20,14 +20,21 @@ let all_accessible_rolls (grid_dim, grid_content) =
 
 (** Recursively remove all accessible rolls and count the number of removals *)
 let day4_part2 (grid_dim, grid_content) =
-  let rec aux n grid =
-    match all_accessible_rolls (grid_dim, Grids.naive_of_mapgrid grid) with
+  let rec aux l n grid =
+    let l1, l2 =
+      List.partition (is_accessible_roll @@ Grids.naive_of_mapgrid grid) l
+    in
+    match l1 with
     | [] -> n
     | l ->
-        aux (n + List.length l)
+        aux l2 (n + List.length l)
         @@ List.fold_left (fun acc a -> Grids.set a Empty acc) grid l
   in
-  aux 0 (Grids.init_mapgrid grid_content)
+  aux
+    (List.filter (fun pos -> grid_content pos = Roll)
+    @@ Vec2.square (0, 0) grid_dim)
+    0
+    (Grids.init_mapgrid grid_content)
 
 (** The parser for today's input *)
 let p =
